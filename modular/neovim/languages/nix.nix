@@ -15,9 +15,11 @@
   ];
 
   config = ''
-    -- Nix LSP (nil)
-    require("lspconfig").nil_ls.setup({
-      capabilities = _G.lsp_capabilities,
+    -- Nix LSP (nil) using native vim.lsp.config
+    vim.lsp.config.nil_ls = {
+      cmd = { "nil" },
+      filetypes = { "nix" },
+      root_markers = { "flake.nix", ".git" },
       settings = {
         ["nil"] = {
           formatting = {
@@ -30,7 +32,8 @@
           },
         },
       },
-    })
+    }
+    vim.lsp.enable("nil_ls")
 
     -- Nix-specific settings
     vim.api.nvim_create_autocmd("FileType", {

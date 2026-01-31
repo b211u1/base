@@ -5,7 +5,6 @@
   name = "rust";
 
   plugins = with pkgs.vimPlugins; [
-    rustaceanvim
     crates-nvim
     friendly-snippets  # VSCode-style snippets for Rust
   ];
@@ -27,30 +26,26 @@
       include = { "rust" }
     })
 
-    -- Rust (rustaceanvim - successor to rust-tools)
-    vim.g.rustaceanvim = {
-      tools = {
-        hover_actions = {
-          auto_focus = true,
-        },
-      },
-      server = {
-        capabilities = _G.lsp_capabilities,
-        settings = {
-          ["rust-analyzer"] = {
-            checkOnSave = {
-              command = "clippy",
-            },
-            cargo = {
-              allFeatures = true,
-            },
-            procMacro = {
-              enable = true,
-            },
+    -- Rust LSP (rust-analyzer) using native vim.lsp.config
+    vim.lsp.config.rust_analyzer = {
+      cmd = { "rust-analyzer" },
+      filetypes = { "rust" },
+      root_markers = { "Cargo.toml", "rust-project.json", ".git" },
+      settings = {
+        ["rust-analyzer"] = {
+          checkOnSave = {
+            command = "clippy",
+          },
+          cargo = {
+            allFeatures = true,
+          },
+          procMacro = {
+            enable = true,
           },
         },
       },
     }
+    vim.lsp.enable("rust_analyzer")
 
     -- Crates.nvim for Cargo.toml management
     require("crates").setup({
@@ -64,12 +59,10 @@
       pattern = "rust",
       callback = function()
         local opts = { buffer = true }
-        vim.keymap.set("n", "<leader>rr", "<cmd>RustLsp runnables<cr>", opts)
-        vim.keymap.set("n", "<leader>rd", "<cmd>RustLsp debuggables<cr>", opts)
-        vim.keymap.set("n", "<leader>re", "<cmd>RustLsp expandMacro<cr>", opts)
-        vim.keymap.set("n", "<leader>rc", "<cmd>RustLsp openCargo<cr>", opts)
-        vim.keymap.set("n", "<leader>rp", "<cmd>RustLsp parentModule<cr>", opts)
-        vim.keymap.set("n", "J", "<cmd>RustLsp joinLines<cr>", opts)
+        -- Use LSP code actions for rust-analyzer commands
+        vim.keymap.set("n", "<leader>rc", function()
+          vim.cmd("edit Cargo.toml")
+        end, { buffer = true, desc = "Open Cargo.toml" })
       end,
     })
 

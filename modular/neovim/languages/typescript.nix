@@ -5,7 +5,6 @@
   name = "typescript";
 
   plugins = with pkgs.vimPlugins; [
-    typescript-tools-nvim
     friendly-snippets  # VSCode-style snippets for JS/TS
   ];
 
@@ -23,36 +22,57 @@
       include = { "javascript", "typescript", "typescriptreact", "javascriptreact" }
     })
 
-    -- TypeScript Tools (better than vanilla tsserver)
-    require("typescript-tools").setup({
-      capabilities = _G.lsp_capabilities,
+    -- TypeScript LSP using native vim.lsp.config
+    vim.lsp.config.ts_ls = {
+      cmd = { "typescript-language-server", "--stdio" },
+      filetypes = { "javascript", "javascriptreact", "typescript", "typescriptreact" },
+      root_markers = { "tsconfig.json", "jsconfig.json", "package.json", ".git" },
       settings = {
-        separate_diagnostic_server = true,
-        publish_diagnostic_on = "insert_leave",
-        tsserver_file_preferences = {
-          includeInlayParameterNameHints = "all",
-          includeInlayEnumMemberValueHints = true,
-          includeInlayFunctionLikeReturnTypeHints = true,
-          includeInlayVariableTypeHints = true,
+        typescript = {
+          inlayHints = {
+            includeInlayParameterNameHints = "all",
+            includeInlayEnumMemberValueHints = true,
+            includeInlayFunctionLikeReturnTypeHints = true,
+            includeInlayVariableTypeHints = true,
+          },
+        },
+        javascript = {
+          inlayHints = {
+            includeInlayParameterNameHints = "all",
+            includeInlayEnumMemberValueHints = true,
+            includeInlayFunctionLikeReturnTypeHints = true,
+            includeInlayVariableTypeHints = true,
+          },
         },
       },
-    })
+    }
+    vim.lsp.enable("ts_ls")
 
     -- Biome for formatting/linting (if project uses it)
-    require("lspconfig").biome.setup({
-      capabilities = _G.lsp_capabilities,
-      root_dir = require("lspconfig.util").root_pattern("biome.json", "biome.jsonc"),
-      single_file_support = false,
+    vim.lsp.config.biome = {
+      cmd = { "biome", "lsp-proxy" },
+      filetypes = { "javascript", "javascriptreact", "typescript", "typescriptreact", "json", "jsonc" },
+      root_markers = { "biome.json", "biome.jsonc" },
+    }
+    -- Only enable biome if config exists (checked at runtime)
+    vim.api.nvim_create_autocmd("BufEnter", {
+      pattern = { "*.js", "*.jsx", "*.ts", "*.tsx", "*.json" },
+      callback = function()
+        local root = vim.fs.root(0, { "biome.json", "biome.jsonc" })
+        if root then
+          vim.lsp.enable("biome")
+        end
+      end,
+      once = true,
     })
 
     -- TypeScript-specific keymaps
     vim.api.nvim_create_autocmd("FileType", {
       pattern = { "typescript", "typescriptreact", "javascript", "javascriptreact" },
       callback = function()
-        vim.keymap.set("n", "<leader>to", "<cmd>TSToolsOrganizeImports<cr>", { buffer = true, desc = "Organize imports" })
-        vim.keymap.set("n", "<leader>ta", "<cmd>TSToolsAddMissingImports<cr>", { buffer = true, desc = "Add missing imports" })
-        vim.keymap.set("n", "<leader>tf", "<cmd>TSToolsFixAll<cr>", { buffer = true, desc = "Fix all" })
-        vim.keymap.set("n", "<leader>tr", "<cmd>TSToolsRenameFile<cr>", { buffer = true, desc = "Rename file" })
+        vim.keymap.set("n", "<leader>to", function()
+          vim.lsp.buf.execute_command({ command = "_typescript.organizeImports", arguments = { vim.api.nvim_buf_get_name(0) } })
+        end, { buffer = true, desc = "Organize imports" })
       end,
     })
   '';

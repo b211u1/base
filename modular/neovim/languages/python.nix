@@ -132,9 +132,11 @@ if __name__ == "__main__":
 ]], { i(1, "pass") })),
     })
 
-    -- Python LSP (Pyright)
-    require("lspconfig").pyright.setup({
-      capabilities = _G.lsp_capabilities,
+    -- Python LSP (Pyright) using native vim.lsp.config
+    vim.lsp.config.pyright = {
+      cmd = { "pyright-langserver", "--stdio" },
+      filetypes = { "python" },
+      root_markers = { "pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", ".git" },
       settings = {
         python = {
           analysis = {
@@ -144,12 +146,16 @@ if __name__ == "__main__":
           },
         },
       },
-    })
+    }
+    vim.lsp.enable("pyright")
 
     -- Ruff for linting/formatting
-    require("lspconfig").ruff.setup({
-      capabilities = _G.lsp_capabilities,
-    })
+    vim.lsp.config.ruff = {
+      cmd = { "ruff", "server" },
+      filetypes = { "python" },
+      root_markers = { "pyproject.toml", "ruff.toml", ".ruff.toml", ".git" },
+    }
+    vim.lsp.enable("ruff")
 
     -- Python-specific settings
     vim.api.nvim_create_autocmd("FileType", {

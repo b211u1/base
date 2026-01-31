@@ -12,15 +12,13 @@
     # Treesitter for syntax highlighting
     nvim-treesitter.withAllGrammars
 
-    # LSP Support
-    nvim-lspconfig
+    # LSP Support (using native vim.lsp.config in Neovim 0.11+)
     nvim-cmp
     cmp-nvim-lsp
     cmp-buffer
     cmp-path
     luasnip
     cmp_luasnip
-    lsp-format-nvim
     fidget-nvim
 
     # UI enhancements
@@ -328,8 +326,16 @@
     require("nvim-surround").setup({})
 
     require("better_escape").setup({
-      mapping = { "jk", "jj" },
       timeout = 200,
+      default_mappings = false,
+      mappings = {
+        i = {
+          j = {
+            k = "<Esc>",
+            j = "<Esc>",
+          },
+        },
+      },
     })
 
     require("which-key").setup({
@@ -370,27 +376,26 @@
     -- ============================================
     -- TREESITTER
     -- ============================================
-    require("nvim-treesitter.configs").setup({
+    require("nvim-treesitter").setup({
       highlight = { enable = true },
       indent = { enable = true },
-      incremental_selection = {
-        enable = true,
-        keymaps = {
-          init_selection = "<C-space>",
-          node_incremental = "<C-space>",
-          scope_incremental = false,
-          node_decremental = "<bs>",
-        },
-      },
     })
+
+    -- Incremental selection
+    vim.keymap.set("n", "<C-space>", function()
+      require("nvim-treesitter.incremental_selection").init_selection()
+    end, { desc = "Init treesitter selection" })
+    vim.keymap.set("v", "<C-space>", function()
+      require("nvim-treesitter.incremental_selection").node_incremental()
+    end, { desc = "Increment treesitter selection" })
+    vim.keymap.set("v", "<bs>", function()
+      require("nvim-treesitter.incremental_selection").node_decremental()
+    end, { desc = "Decrement treesitter selection" })
 
     -- ============================================
     -- LSP & COMPLETION
     -- ============================================
     local capabilities = require("cmp_nvim_lsp").default_capabilities()
-
-    -- LSP Format
-    require("lsp-format").setup({})
 
     local cmp = require("cmp")
     local luasnip = require("luasnip")
@@ -475,11 +480,6 @@
         -- Enable inlay hints if supported
         if client and client.server_capabilities.inlayHintProvider then
           vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
-        end
-
-        -- Attach lsp-format
-        if client then
-          require("lsp-format").on_attach(client, bufnr)
         end
 
         vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts)

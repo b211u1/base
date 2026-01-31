@@ -24,8 +24,7 @@
           # Treesitter for syntax highlighting
           nvim-treesitter.withAllGrammars
 
-          # LSP Support
-          nvim-lspconfig
+          # LSP Support (using native vim.lsp.config in Neovim 0.11+)
           nvim-cmp
           cmp-nvim-lsp
           cmp-buffer
@@ -271,8 +270,16 @@
           require("nvim-surround").setup({})
 
           require("better_escape").setup({
-            mapping = { "jk", "jj" },
             timeout = 200,
+            default_mappings = false,
+            mappings = {
+              i = {
+                j = {
+                  k = "<Esc>",
+                  j = "<Esc>",
+                },
+              },
+            },
           })
 
           require("which-key").setup({
@@ -302,19 +309,21 @@
           -- ============================================
           -- TREESITTER
           -- ============================================
-          require("nvim-treesitter.configs").setup({
+          require("nvim-treesitter").setup({
             highlight = { enable = true },
             indent = { enable = true },
-            incremental_selection = {
-              enable = true,
-              keymaps = {
-                init_selection = "<C-space>",
-                node_incremental = "<C-space>",
-                scope_incremental = false,
-                node_decremental = "<bs>",
-              },
-            },
           })
+
+          -- Incremental selection
+          vim.keymap.set("n", "<C-space>", function()
+            require("nvim-treesitter.incremental_selection").init_selection()
+          end, { desc = "Init treesitter selection" })
+          vim.keymap.set("v", "<C-space>", function()
+            require("nvim-treesitter.incremental_selection").node_incremental()
+          end, { desc = "Increment treesitter selection" })
+          vim.keymap.set("v", "<bs>", function()
+            require("nvim-treesitter.incremental_selection").node_decremental()
+          end, { desc = "Decrement treesitter selection" })
 
           -- ============================================
           -- LSP & COMPLETION
@@ -440,22 +449,26 @@
               isort
             ];
             extraConfig = ''
-              -- Python LSP (Pyright)
-              require("lspconfig").pyright.setup({
-                capabilities = _G.lsp_capabilities,
-              })
+              -- Python LSP (Pyright) using native vim.lsp.config
+              vim.lsp.config.pyright = {
+                cmd = { "pyright-langserver", "--stdio" },
+                filetypes = { "python" },
+                root_markers = { "pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", ".git" },
+              }
+              vim.lsp.enable("pyright")
 
               -- Ruff for linting/formatting
-              require("lspconfig").ruff.setup({
-                capabilities = _G.lsp_capabilities,
-              })
+              vim.lsp.config.ruff = {
+                cmd = { "ruff", "server" },
+                filetypes = { "python" },
+                root_markers = { "pyproject.toml", "ruff.toml", ".ruff.toml", ".git" },
+              }
+              vim.lsp.enable("ruff")
             '';
           };
 
           typescript = {
-            extraPlugins = with pkgs.vimPlugins; [
-              typescript-tools-nvim
-            ];
+            extraPlugins = with pkgs.vimPlugins; [ ];
             extraPackages = with pkgs; [
               nodejs
               nodePackages.typescript
@@ -464,16 +477,18 @@
               biome
             ];
             extraConfig = ''
-              -- TypeScript
-              require("typescript-tools").setup({
-                capabilities = _G.lsp_capabilities,
-              })
+              -- TypeScript LSP using native vim.lsp.config
+              vim.lsp.config.ts_ls = {
+                cmd = { "typescript-language-server", "--stdio" },
+                filetypes = { "javascript", "javascriptreact", "typescript", "typescriptreact" },
+                root_markers = { "tsconfig.json", "jsconfig.json", "package.json", ".git" },
+              }
+              vim.lsp.enable("ts_ls")
             '';
           };
 
           rust = {
             extraPlugins = with pkgs.vimPlugins; [
-              rustaceanvim
               crates-nvim
             ];
             extraPackages = with pkgs; [
@@ -484,12 +499,19 @@
               clippy
             ];
             extraConfig = ''
-              -- Rust (via rustaceanvim)
-              vim.g.rustaceanvim = {
-                server = {
-                  capabilities = _G.lsp_capabilities,
+              -- Rust LSP using native vim.lsp.config
+              vim.lsp.config.rust_analyzer = {
+                cmd = { "rust-analyzer" },
+                filetypes = { "rust" },
+                root_markers = { "Cargo.toml", "rust-project.json", ".git" },
+                settings = {
+                  ["rust-analyzer"] = {
+                    checkOnSave = { command = "clippy" },
+                    cargo = { allFeatures = true },
+                  },
                 },
               }
+              vim.lsp.enable("rust_analyzer")
 
               -- Crates.nvim for Cargo.toml
               require("crates").setup({})
@@ -497,25 +519,20 @@
           };
 
           csharp = {
-            extraPlugins = with pkgs.vimPlugins; [
-              omnisharp-extended-lsp-nvim
-            ];
+            extraPlugins = with pkgs.vimPlugins; [ ];
             extraPackages = with pkgs; [
               dotnet-sdk_8
               omnisharp-roslyn
               csharpier
             ];
             extraConfig = ''
-              -- C# / .NET
-              require("lspconfig").omnisharp.setup({
-                capabilities = _G.lsp_capabilities,
-                cmd = { "${pkgs.omnisharp-roslyn}/bin/OmniSharp" },
-                handlers = {
-                  ["textDocument/definition"] = require("omnisharp_extended").definition_handler,
-                  ["textDocument/references"] = require("omnisharp_extended").references_handler,
-                  ["textDocument/implementation"] = require("omnisharp_extended").implementation_handler,
-                },
-              })
+              -- C# / .NET using native vim.lsp.config
+              vim.lsp.config.omnisharp = {
+                cmd = { "${pkgs.omnisharp-roslyn}/bin/OmniSharp", "--languageserver" },
+                filetypes = { "cs" },
+                root_markers = { "*.sln", "*.csproj", ".git" },
+              }
+              vim.lsp.enable("omnisharp")
             '';
           };
 
@@ -528,10 +545,13 @@
               golangci-lint
             ];
             extraConfig = ''
-              -- Go
-              require("lspconfig").gopls.setup({
-                capabilities = _G.lsp_capabilities,
-              })
+              -- Go using native vim.lsp.config
+              vim.lsp.config.gopls = {
+                cmd = { "gopls" },
+                filetypes = { "go", "gomod", "gowork", "gotmpl" },
+                root_markers = { "go.mod", "go.work", ".git" },
+              }
+              vim.lsp.enable("gopls")
             '';
           };
 
@@ -542,40 +562,46 @@
               nixpkgs-fmt
             ];
             extraConfig = ''
-              -- Nix
-              require("lspconfig").nil_ls.setup({
-                capabilities = _G.lsp_capabilities,
+              -- Nix using native vim.lsp.config
+              vim.lsp.config.nil_ls = {
+                cmd = { "nil" },
+                filetypes = { "nix" },
+                root_markers = { "flake.nix", ".git" },
                 settings = {
                   ["nil"] = {
                     formatting = { command = { "nixpkgs-fmt" } },
                   },
                 },
-              })
+              }
+              vim.lsp.enable("nil_ls")
             '';
           };
 
           lua = {
             extraPlugins = with pkgs.vimPlugins; [
-              neodev-nvim
+              lazydev-nvim
             ];
             extraPackages = with pkgs; [
               lua-language-server
               stylua
             ];
             extraConfig = ''
-              -- Neodev for Neovim Lua development
-              require("neodev").setup({})
+              -- Lazydev for Neovim Lua development
+              require("lazydev").setup({})
 
-              -- Lua
-              require("lspconfig").lua_ls.setup({
-                capabilities = _G.lsp_capabilities,
+              -- Lua using native vim.lsp.config
+              vim.lsp.config.lua_ls = {
+                cmd = { "lua-language-server" },
+                filetypes = { "lua" },
+                root_markers = { ".luarc.json", ".luarc.jsonc", ".git" },
                 settings = {
                   Lua = {
                     workspace = { checkThirdParty = false },
                     telemetry = { enable = false },
                   },
                 },
-              })
+              }
+              vim.lsp.enable("lua_ls")
             '';
           };
         };

@@ -5,7 +5,6 @@
   name = "csharp";
 
   plugins = with pkgs.vimPlugins; [
-    omnisharp-extended-lsp-nvim
     friendly-snippets  # VSCode-style snippets for C#
   ];
 
@@ -22,20 +21,11 @@
       include = { "csharp" }
     })
 
-    -- C# / .NET (OmniSharp)
-    local omnisharp_bin = "${pkgs.omnisharp-roslyn}/bin/OmniSharp"
-
-    require("lspconfig").omnisharp.setup({
-      capabilities = _G.lsp_capabilities,
-      cmd = { omnisharp_bin },
-
-      -- Use omnisharp-extended for better go-to-definition
-      handlers = {
-        ["textDocument/definition"] = require("omnisharp_extended").definition_handler,
-        ["textDocument/references"] = require("omnisharp_extended").references_handler,
-        ["textDocument/implementation"] = require("omnisharp_extended").implementation_handler,
-      },
-
+    -- C# / .NET (OmniSharp) using native vim.lsp.config
+    vim.lsp.config.omnisharp = {
+      cmd = { "${pkgs.omnisharp-roslyn}/bin/OmniSharp", "--languageserver" },
+      filetypes = { "cs" },
+      root_markers = { "*.sln", "*.csproj", ".git" },
       settings = {
         FormattingOptions = {
           EnableEditorConfigSupport = true,
@@ -50,12 +40,8 @@
           AnalyzeOpenDocumentsOnly = false,
         },
       },
-
-      -- Better handling for decompiled sources
-      enable_roslyn_analyzers = true,
-      organize_imports_on_format = true,
-      enable_import_completion = true,
-    })
+    }
+    vim.lsp.enable("omnisharp")
 
     -- C#-specific settings
     vim.api.nvim_create_autocmd("FileType", {
@@ -63,14 +49,14 @@
       callback = function()
         vim.opt_local.shiftwidth = 4
         vim.opt_local.tabstop = 4
+      end,
+    })
 
-        -- Format with CSharpier on save
-        vim.api.nvim_create_autocmd("BufWritePre", {
-          buffer = 0,
-          callback = function()
-            vim.lsp.buf.format({ async = false })
-          end,
-        })
+    -- Format on save for C#
+    vim.api.nvim_create_autocmd("BufWritePre", {
+      pattern = "*.cs",
+      callback = function()
+        vim.lsp.buf.format({ async = false })
       end,
     })
   '';
