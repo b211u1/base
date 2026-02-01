@@ -1,394 +1,189 @@
-# Composable Nix Development Shells with Shared Neovim Configuration
+# devshells
 
-A Nix flakes-based system for creating development shells that share a common Neovim configuration while allowing language-specific extensions.
+Composable Nix development shells with a fully-configured Neovim.
 
-## Features
-
-- **Cyberdream theme** with transparent background and custom color palette
-- **Bufferline** for buffer tabs with LSP diagnostics
-- **Language-specific extensions** that add LSPs, formatters, and tooling
-- **Composable shells** - combine multiple languages in a single shell
-- **Fully declarative** - all configuration is in Nix
-- **Portable** - works on any system with Nix flakes enabled
-
-## Base Neovim Setup
-
-The configuration includes:
-- **Theme**: Cyberdream with transparency, vibrant colors, gray italic comments
-- **UI**: Lualine, Bufferline, NvimTree, Telescope, indent guides
-- **Editor**: nvim-autopairs, Comment.nvim, nvim-surround, better-escape (jk/jj)
-- **Git**: Gitsigns with current line blame
-- **LSP/Completion**: nvim-lspconfig, nvim-cmp, luasnip
-- **Diagnostics**: Trouble, todo-comments
-- **Navigation**: which-key for keybinding hints
+The base provides editor infrastructure — theme, completion, navigation, keybindings — without language specifics. Language modules add LSPs, formatters, and snippets. Compose what you need.
 
 ## Quick Start
 
 ```bash
-# Enter a TypeScript development shell
-nix develop github:yourusername/devshells#typescript
-
-# Enter a Python development shell
-nix develop github:yourusername/devshells#python
-
-# Enter a C# development shell
-nix develop github:yourusername/devshells#csharp
-
-# Enter a full-stack shell (TypeScript + Python)
-nix develop github:yourusername/devshells#fullstack
+# Clone and enter a shell
+cd devshells/modular
+nix develop .#python      # Python + Pyright + Ruff
+nix develop .#typescript  # TypeScript + ts_ls
+nix develop .#fullstack   # Python + TypeScript + tooling
 ```
 
-## Project Structure
-
-```
-.
-├── flake.nix                 # Single-file version (simpler but may lag behind)
-└── modular/                  # RECOMMENDED - modular version with separate files
-    ├── flake.nix             # Modular version entry point
-    └── neovim/
-        ├── base.nix          # Base Neovim configuration (your full config)
-        └── languages/
-            ├── python.nix
-            ├── typescript.nix
-            ├── csharp.nix
-            ├── rust.nix
-            └── nix.nix
-```
-
-**Recommendation**: Use the `modular/` version for the most complete and maintainable setup.
-
-## Usage in Your Project
-
-### Option 1: Use Pre-built Shells Directly
-
-Create a `flake.nix` in your project:
+## Use in Your Project
 
 ```nix
+# flake.nix
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-parts.url = "github:hercules-ci/flake-parts";
     devshells.url = "github:yourusername/devshells";
   };
 
-  outputs = { self, nixpkgs, devshells, ... }:
-    let
-      system = "x86_64-linux"; # or "aarch64-darwin", etc.
-    in {
-      devShells.${system}.default = devshells.devShells.${system}.typescript;
+  outputs = inputs@{ flake-parts, devshells, ... }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      systems = [ "x86_64-linux" "aarch64-darwin" ];
+      
+      imports = [ devshells.flakeModules.default ];
+
+      perSystem = { pkgs, ... }: {
+        devshells.shells.default = {
+          name = "my-project";
+          languages = {
+            python.enable = true;
+            typescript.enable = true;
+            nix.enable = true;
+          };
+          extraPackages = with pkgs; [ docker-compose ];
+        };
+      };
     };
 }
 ```
 
-### Option 2: Create Custom Shells
+## Add Custom Language Modules
 
-Use the `mkDevShell` function to create customized shells:
+You can add your own language modules without forking:
 
 ```nix
-{
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
-    devshells.url = "github:yourusername/devshells";
+devshells.shells.default = {
+  name = "ai-coding";
+  languages = {
+    python.enable = true;
+    claude.enable = true;  # Your custom module
   };
-
-  outputs = { self, nixpkgs, flake-utils, devshells }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = import nixpkgs { inherit system; };
-        inherit (devshells.lib.${system}) mkDevShell;
-      in {
-        devShells.default = mkDevShell {
-          name = "my-project";
-          languages = [ "typescript" "python" ];
-          extraPackages = with pkgs; [
-            awscli2
-            docker-compose
-            terraform
-          ];
-          shellHook = ''
-            echo "Welcome to my project!"
-          '';
-        };
-      }
-    );
-}
-```
-
-### Option 3: Add Custom Languages
-
-Extend the language configurations:
-
-```nix
-{
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
-    devshells.url = "github:yourusername/devshells";
+  
+  extraLanguageModules = {
+    claude = {
+      name = "claude";
+      plugins = with pkgs.vimPlugins; [ ];
+      packages = with pkgs; [ /* claude-code */ ];
+      config = ''
+        -- Your Neovim config for this language
+        vim.keymap.set("n", "<leader>cc", "<cmd>TermExec cmd='claude'<cr>")
+      '';
+    };
   };
-
-  outputs = { self, nixpkgs, flake-utils, devshells }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = import nixpkgs { inherit system; };
-        inherit (devshells.lib.${system}) mkDevShell addLanguage;
-
-        # Add a new language
-        extendedConfigs = addLanguage "terraform" {
-          name = "terraform";
-          plugins = [];
-          packages = with pkgs; [ terraform terraform-ls tflint ];
-          config = ''
-            require("lspconfig").terraformls.setup({
-              capabilities = _G.lsp_capabilities,
-            })
-          '';
-        };
-      in {
-        devShells.default = mkDevShell {
-          name = "infra-project";
-          languages = [ "terraform" "nix" ];
-        };
-      }
-    );
-}
+};
 ```
 
-## Available Shells
+## Design
 
-| Shell | Languages | Description |
-|-------|-----------|-------------|
-| `default` | nix | Minimal shell with Nix support |
-| `python` | python, nix | Python development with Pyright + Ruff |
-| `typescript` | typescript, nix | TypeScript/JS with typescript-tools |
-| `csharp` | csharp, nix | .NET development with OmniSharp |
-| `fullstack` | typescript, python, nix | Full-stack web development |
-| `dotnet-fullstack` | csharp, typescript, nix | .NET + frontend development |
+- **Base is language-agnostic** — Cyberdream theme, nvim-cmp, Telescope, Treesitter, toggleterm, gitsigns
+- **Languages are additive** — Each module brings LSP, tooling, snippets, filetype settings
+- **Native Neovim 0.11+** — Uses `vim.lsp.config` directly
+- **Flake-parts module** — Import in other flakes, compose freely
 
-## Base Neovim Setup
+## Available Languages
 
-The configuration includes everything from your personal setup:
+| Language | LSP | Formatter | Extras |
+|----------|-----|-----------|--------|
+| `python` | Pyright | Ruff | pytest snippets |
+| `typescript` | ts_ls | Biome | JS/TS/React |
+| `csharp` | OmniSharp | CSharpier | .NET SDK |
+| `rust` | rust-analyzer | rustfmt | crates.nvim |
+| `nix` | nil | nixpkgs-fmt | statix, deadnix |
 
-### Options
-- `guifont = "MartianMono Nerd Font:h12"`
-- Line numbers (relative), no wrap, colorcolumn 88
-- Smart search (ignorecase + smartcase)
-- Split right/below, scrolloff 8
-- No swap/backup, undofile enabled
+## Pre-built Shells
 
-### Theme & UI
-- **Cyberdream** with transparent background
-- Custom color palette (blue, green, cyan, red, yellow, magenta, pink, orange, purple)
-- Gray italic comments (#696969)
-- **Lualine** with your section config
-- **Bufferline** - full config with icons, indicators, hover, diagnostics
+| Shell | Languages |
+|-------|-----------|
+| `default` | nix |
+| `python` | python, nix |
+| `typescript` | typescript, nix |
+| `csharp` | csharp, nix |
+| `rust` | rust, nix |
+| `fullstack` | typescript, python, nix |
+| `dotnet-fullstack` | csharp, typescript, nix |
 
-### Diagnostics
-- Custom signs: Error  , Warn  , Hint 󰌵 , Info  
-- Virtual text with ● prefix
-- Rounded borders on hover/signature help
+## Adding a New Language
 
-### Plugins
-- **LSP**: nvim-lspconfig, fidget (progress), lsp-format
-- **Completion**: nvim-cmp with priorities, icons, rounded borders
-- **Snippets**: luasnip + friendly-snippets
-- **Syntax**: nvim-treesitter (all grammars)
-- **Navigation**: telescope.nvim, nvim-tree (with filters)
-- **Editing**: nvim-autopairs, Comment.nvim, nvim-surround, better-escape
-- **Git**: gitsigns.nvim with current line blame
-- **Terminal**: toggleterm (`<C-\>` to toggle)
-- **Diagnostics**: trouble.nvim (auto-close), todo-comments
-- **UI**: which-key, indent-blankline
-
-### Key Mappings
-
-| Key | Mode | Action |
-|-----|------|--------|
-| `<Space>` | n | Leader key |
-| `<leader>ff` | n | Find files |
-| `<leader>fg` | n | Live grep |
-| `<leader>fb` | n | Find buffers |
-| `<leader>fh` | n | Help tags |
-| `<leader>fr` | n | Recent files |
-| `<leader>fd` | n | Diagnostics |
-| `<leader>e` | n | Toggle file explorer |
-| `<leader>xx` | n | Toggle Trouble diagnostics |
-| `gd` | n | Go to definition |
-| `gr` | n | Find references |
-| `K` | n | Hover documentation |
-| `<leader>rn` | n | Rename symbol |
-| `<leader>ca` | n | Code actions |
-| `<leader>f` | n | Format buffer |
-| `<leader>d` | n | Show diagnostic float |
-| `[d` / `]d` | n | Prev/next diagnostic |
-| `[c` / `]c` | n | Prev/next git hunk |
-| `<leader>hs` | n | Stage hunk |
-| `<leader>hr` | n | Reset hunk |
-| `<leader>hp` | n | Preview hunk |
-| `<leader>hb` | n | Blame line |
-| `<S-h>` / `<S-l>` | n | Prev/next buffer |
-| `<leader>x` | n | Close buffer |
-| `<leader>w` | n | Save file |
-| `<C-h/j/k/l>` | n | Window navigation |
-| `jk` or `jj` | i | Exit insert mode |
-| `gcc` | n | Toggle line comment |
-| `gc` | v | Toggle selection comment |
-
-## Language-Specific Features
-
-### Python
-- LSP: Pyright
-- Linting/Formatting: Ruff
-- Packages: python3, black, isort, debugpy
-
-### TypeScript
-- LSP: typescript-tools.nvim
-- Formatting: Prettier, Biome
-- Extra commands: `<leader>to` organize imports, `<leader>ta` add missing imports
-
-### C#
-- LSP: OmniSharp
-- Formatting: CSharpier
-- Enhanced go-to-definition for decompiled sources
-- .NET SDK 8
-
-### Nix
-- LSP: nil
-- Formatting: nixpkgs-fmt
-- Linting: statix, deadnix
-
-## Customizing the Base Configuration
-
-You can override parts of the base configuration:
+Create `neovim/languages/go.nix`:
 
 ```nix
-let
-  inherit (devshells.lib.${system}) baseNeovim mkNeovim;
-
-  customNeovim = mkNeovim {
-    languages = [ "typescript" ];
-    # The base config is always included
-    # Language configs are added on top
-  };
-in
-# Use customNeovim in your shell
-```
-
-## Tips
-
-### Use direnv for automatic activation
-
-Create `.envrc` in your project:
-
-```bash
-use flake
-```
-
-Then run `direnv allow`.
-
-### Pin the flake input
-
-For reproducible builds, use a specific revision:
-
-```nix
-devshells.url = "github:yourusername/devshells?rev=abc123...";
-```
-
-### Local development of the devshells flake
-
-```bash
-# Clone the repo
-git clone https://github.com/yourusername/devshells
-cd devshells
-
-# Test a shell
-nix develop .#typescript
-
-# Or test the modular version
-nix develop ./modular#typescript
-```
-
-## Adding New Languages
-
-1. Create a new file in `neovim/languages/`:
-
-```nix
-# neovim/languages/rust.nix
 { pkgs }:
 
 {
-  name = "rust";
+  name = "go";
 
   plugins = with pkgs.vimPlugins; [
-    rustaceanvim
-    crates-nvim
-    friendly-snippets  # Include if you want VSCode snippets for this language
+    friendly-snippets
   ];
 
   packages = with pkgs; [
-    rustc
-    cargo
-    rust-analyzer
-    rustfmt
-    clippy
+    go
+    gopls
+    gotools
+    golangci-lint
   ];
 
   config = ''
-    -- Load Rust snippets (optional)
     require("luasnip.loaders.from_vscode").lazy_load({
-      include = { "rust" }
+      include = { "go" }
     })
 
-    -- Custom snippets (optional)
-    local ls = require("luasnip")
-    local s = ls.snippet
-    -- ... add custom snippets here
-
-    -- LSP setup
-    vim.g.rustaceanvim = {
-      server = {
-        capabilities = _G.lsp_capabilities,
-      },
+    vim.lsp.config.gopls = {
+      cmd = { "gopls" },
+      filetypes = { "go", "gomod", "gowork", "gotmpl" },
+      root_markers = { "go.mod", "go.work", ".git" },
     }
-    require("crates").setup({})
+    vim.lsp.enable("gopls")
+
+    vim.api.nvim_create_autocmd("FileType", {
+      pattern = "go",
+      callback = function()
+        vim.opt_local.tabstop = 4
+        vim.opt_local.shiftwidth = 4
+        vim.opt_local.expandtab = false
+      end,
+    })
   '';
 }
 ```
 
-2. Import it in `flake.nix`:
+It's automatically discovered and available as `languages.go.enable = true`.
 
-```nix
-languageConfigs = {
-  # ... existing configs
-  rust = import ./neovim/languages/rust.nix { inherit pkgs; };
-};
+## Keymaps
+
+| Key | Action |
+|-----|--------|
+| `<leader>ff` | Find files |
+| `<leader>fg` | Live grep |
+| `<leader>fb` | Buffers |
+| `<leader>e` | File explorer |
+| `<S-h>` / `<S-l>` | Previous/next buffer |
+| `<leader>x` | Close buffer |
+| `gd` | Go to definition |
+| `gr` | References |
+| `K` | Hover docs |
+| `<leader>ca` | Code actions |
+| `<leader>rn` | Rename |
+| `<leader>fm` | Format |
+| `<C-\>` | Toggle terminal |
+| `jk` / `jj` | Exit insert mode |
+
+## Structure
+
 ```
-
-3. Add a shell:
-
-```nix
-devShells = {
-  # ... existing shells
-  rust = mkDevShell {
-    name = "rust-dev";
-    languages = [ "rust" "nix" ];
-  };
-};
+modular/
+├── flake.nix                 # Flake-parts entry point
+├── modules/
+│   └── devshell.nix          # The flake-parts module
+└── neovim/
+    ├── base.nix              # Language-agnostic Neovim config
+    └── languages/
+        ├── default.nix       # Auto-imports siblings
+        ├── python.nix
+        ├── typescript.nix
+        ├── csharp.nix
+        ├── rust.nix
+        └── nix.nix
 ```
-
-## Architecture Notes
-
-The base configuration provides **language-agnostic infrastructure**:
-- Editor settings, theme, UI plugins
-- LSP client setup (but no language servers)
-- Completion framework (nvim-cmp + luasnip)
-- Keymaps for navigation, editing, LSP interaction
-
-Language modules add **language-specific elements**:
-- LSP servers and their configuration
-- Formatters and linters
-- Snippets (via `friendly-snippets` or custom)
-- Language-specific keymaps and autocmds
-- File type settings (indent, colorcolumn, etc.)
 
 ## License
 
