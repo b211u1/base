@@ -14,14 +14,25 @@
         # Import base Neovim configuration
         baseNeovim = import ./neovim/base.nix { inherit pkgs; };
 
-        # Import language configurations
-        languageConfigs = {
-          python = import ./neovim/languages/python.nix { inherit pkgs; };
-          typescript = import ./neovim/languages/typescript.nix { inherit pkgs; };
-          csharp = import ./neovim/languages/csharp.nix { inherit pkgs; };
-          rust = import ./neovim/languages/rust.nix { inherit pkgs; };
-          nix = import ./neovim/languages/nix.nix { inherit pkgs; };
-        };
+        # Auto-discover language modules from neovim/languages/*.nix
+        languagesDir = ./neovim/languages;
+        languageFiles = builtins.attrNames (
+          builtins.readDir languagesDir
+        );
+        nixFiles = builtins.filter
+          (f: builtins.match ".*\\.nix" f != null)
+          languageFiles;
+        languageConfigs = builtins.listToAttrs (
+          map (f:
+            let
+              name = builtins.replaceStrings [ ".nix" ] [ "" ] f;
+            in
+            {
+              inherit name;
+              value = import (languagesDir + "/${f}") { inherit pkgs; };
+            }
+          ) nixFiles
+        );
 
         # ============================================
         # BUILDER FUNCTIONS
@@ -131,32 +142,32 @@
 
         devShells = {
           default = mkDevShell {
-            name = "default-dev";
+            name = "nix";
             languages = [ "nix" ];
           };
 
           python = mkDevShell {
-            name = "python-dev";
+            name = "python";
             languages = [ "python" "nix" ];
           };
 
           typescript = mkDevShell {
-            name = "typescript-dev";
+            name = "typescript";
             languages = [ "typescript" "nix" ];
           };
 
           csharp = mkDevShell {
-            name = "csharp-dev";
+            name = "csharp";
             languages = [ "csharp" "nix" ];
           };
 
           rust = mkDevShell {
-            name = "rust-dev";
+            name = "rust";
             languages = [ "rust" "nix" ];
           };
 
           fullstack = mkDevShell {
-            name = "fullstack-dev";
+            name = "fullstack";
             languages = [ "typescript" "python" "nix" ];
             extraPackages = with pkgs; [
               docker-compose
