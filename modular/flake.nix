@@ -37,6 +37,7 @@
             plugins = builtins.concatLists (map (c: c.plugins) configs);
             packages = builtins.concatLists (map (c: c.packages) configs);
             config = builtins.concatStringsSep "\n\n" (map (c: "-- ${c.name}\n${c.config}") configs);
+            shellHook = builtins.concatStringsSep "\n" (map (c: c.shellHook or "") configs);
           };
 
         # Build a customized Neovim with specific language support
@@ -87,13 +88,14 @@
 
             shellHook = ''
               export PS1='\[\033[1;34m\][${name}]\[\033[0m\] \[\033[1;32m\]\w\[\033[0m\] \$ '
-              
+
               echo ""
               echo "╭────────────────────────────────────────╮"
               echo "│ 🚀 ${name}"
               echo "│ Languages: ${builtins.concatStringsSep ", " languages}"
               echo "╰────────────────────────────────────────╯"
               echo ""
+              ${merged.shellHook}
               ${shellHook}
             '';
           };

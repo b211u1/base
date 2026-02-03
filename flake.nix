@@ -529,8 +529,14 @@
               omnisharp-roslyn  # omnisharp has darwin SDK compatibility issues
             ];
             extraConfig = if isDarwin then ''
-              -- C# / .NET: OmniSharp not available on Darwin due to SDK compatibility
-              -- Use dotnet CLI tools directly for development
+              -- C# / .NET using csharp-ls (installed via dotnet tool on Darwin)
+              -- Run: dotnet tool install --global csharp-ls
+              vim.lsp.config.csharp_ls = {
+                cmd = { vim.fn.expand("~/.dotnet/tools/csharp-ls") },
+                filetypes = { "cs" },
+                root_markers = { "*.sln", "*.csproj", ".git" },
+              }
+              vim.lsp.enable("csharp_ls")
             '' else ''
               -- C# / .NET using native vim.lsp.config
               vim.lsp.config.omnisharp = {

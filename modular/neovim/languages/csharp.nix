@@ -16,6 +16,14 @@
     netcoredbg
   ];
 
+  # Shell hook to install OmniSharp via dotnet tool on Darwin
+  shellHook = if isDarwin then ''
+    if ! command -v omnisharp &> /dev/null; then
+      echo "Installing OmniSharp via dotnet tool..."
+      dotnet tool install --global csharp-ls 2>/dev/null || true
+    fi
+  '' else "";
+
   config = ''
     -- Load C# snippets from friendly-snippets
     require("luasnip.loaders.from_vscode").lazy_load({
@@ -31,8 +39,21 @@
       end,
     })
   '' + (if isDarwin then ''
-    -- C# / .NET: OmniSharp not available on Darwin due to SDK compatibility
-    -- Use dotnet CLI tools directly for development
+    -- C# / .NET using csharp-ls (installed via dotnet tool on Darwin)
+    vim.lsp.config.csharp_ls = {
+      cmd = { vim.fn.expand("~/.dotnet/tools/csharp-ls") },
+      filetypes = { "cs" },
+      root_markers = { "*.sln", "*.csproj", ".git" },
+    }
+    vim.lsp.enable("csharp_ls")
+
+    -- Format on save for C#
+    vim.api.nvim_create_autocmd("BufWritePre", {
+      pattern = "*.cs",
+      callback = function()
+        vim.lsp.buf.format({ async = false })
+      end,
+    })
   '' else ''
     -- C# / .NET (OmniSharp) using native vim.lsp.config
     vim.lsp.config.omnisharp = {
