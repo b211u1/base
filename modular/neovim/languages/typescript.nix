@@ -1,5 +1,5 @@
 # neovim/languages/typescript.nix
-{ pkgs }:
+{ pkgs, isDarwin ? false }:
 
 {
   name = "typescript";
@@ -13,7 +13,8 @@
     nodePackages.typescript
     nodePackages.typescript-language-server
     nodePackages.prettier
-    biome
+  ] ++ pkgs.lib.optionals (!isDarwin) [
+    biome  # biome has darwin SDK compatibility issues
   ];
 
   config = ''

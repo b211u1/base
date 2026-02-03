@@ -10,6 +10,7 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
+        isDarwin = pkgs.stdenv.isDarwin;
 
         # ============================================
         # NEOVIM CONFIGURATION SYSTEM
@@ -474,7 +475,8 @@
               nodePackages.typescript
               nodePackages.typescript-language-server
               nodePackages.prettier
-              biome
+            ] ++ pkgs.lib.optionals (!isDarwin) [
+              biome  # biome has darwin SDK compatibility issues
             ];
             extraConfig = ''
               -- TypeScript LSP using native vim.lsp.config
@@ -522,10 +524,14 @@
             extraPlugins = with pkgs.vimPlugins; [ ];
             extraPackages = with pkgs; [
               dotnet-sdk_8
-              omnisharp-roslyn
               csharpier
+            ] ++ pkgs.lib.optionals (!isDarwin) [
+              omnisharp-roslyn  # omnisharp has darwin SDK compatibility issues
             ];
-            extraConfig = ''
+            extraConfig = if isDarwin then ''
+              -- C# / .NET: OmniSharp not available on Darwin due to SDK compatibility
+              -- Use dotnet CLI tools directly for development
+            '' else ''
               -- C# / .NET using native vim.lsp.config
               vim.lsp.config.omnisharp = {
                 cmd = { "${pkgs.omnisharp-roslyn}/bin/OmniSharp", "--languageserver" },

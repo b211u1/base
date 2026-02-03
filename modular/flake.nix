@@ -10,15 +10,16 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
+        isDarwin = pkgs.stdenv.isDarwin;
 
         # Import base Neovim configuration
         baseNeovim = import ./neovim/base.nix { inherit pkgs; };
 
-        # Import language configurations
+        # Import language configurations (pass isDarwin for platform-specific packages)
         languageConfigs = {
           python = import ./neovim/languages/python.nix { inherit pkgs; };
-          typescript = import ./neovim/languages/typescript.nix { inherit pkgs; };
-          csharp = import ./neovim/languages/csharp.nix { inherit pkgs; };
+          typescript = import ./neovim/languages/typescript.nix { inherit pkgs isDarwin; };
+          csharp = import ./neovim/languages/csharp.nix { inherit pkgs isDarwin; };
           rust = import ./neovim/languages/rust.nix { inherit pkgs; };
           nix = import ./neovim/languages/nix.nix { inherit pkgs; };
         };

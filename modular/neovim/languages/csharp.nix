@@ -1,5 +1,5 @@
 # neovim/languages/csharp.nix
-{ pkgs }:
+{ pkgs, isDarwin ? false }:
 
 {
   name = "csharp";
@@ -10,8 +10,9 @@
 
   packages = with pkgs; [
     dotnet-sdk_8
-    omnisharp-roslyn
     csharpier
+  ] ++ pkgs.lib.optionals (!isDarwin) [
+    omnisharp-roslyn  # omnisharp has darwin SDK compatibility issues
     netcoredbg
   ];
 
@@ -21,6 +22,18 @@
       include = { "csharp" }
     })
 
+    -- C#-specific settings
+    vim.api.nvim_create_autocmd("FileType", {
+      pattern = "cs",
+      callback = function()
+        vim.opt_local.shiftwidth = 4
+        vim.opt_local.tabstop = 4
+      end,
+    })
+  '' + (if isDarwin then ''
+    -- C# / .NET: OmniSharp not available on Darwin due to SDK compatibility
+    -- Use dotnet CLI tools directly for development
+  '' else ''
     -- C# / .NET (OmniSharp) using native vim.lsp.config
     vim.lsp.config.omnisharp = {
       cmd = { "${pkgs.omnisharp-roslyn}/bin/OmniSharp", "--languageserver" },
@@ -43,15 +56,6 @@
     }
     vim.lsp.enable("omnisharp")
 
-    -- C#-specific settings
-    vim.api.nvim_create_autocmd("FileType", {
-      pattern = "cs",
-      callback = function()
-        vim.opt_local.shiftwidth = 4
-        vim.opt_local.tabstop = 4
-      end,
-    })
-
     -- Format on save for C#
     vim.api.nvim_create_autocmd("BufWritePre", {
       pattern = "*.cs",
@@ -59,5 +63,5 @@
         vim.lsp.buf.format({ async = false })
       end,
     })
-  '';
+  '');
 }
