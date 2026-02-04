@@ -389,9 +389,6 @@
               vim.keymap.set("n", "<leader>f", function()
                 vim.lsp.buf.format({ async = true })
               end, opts)
-              vim.keymap.set("n", "[d", vim.diagnostic.goto_prev, opts)
-              vim.keymap.set("n", "]d", vim.diagnostic.goto_next, opts)
-              vim.keymap.set("n", "<leader>d", vim.diagnostic.open_float, opts)
             end,
           })
 
@@ -430,6 +427,11 @@
 
           -- Save file
           vim.keymap.set("n", "<leader>w", "<cmd>w<cr>", { desc = "Save file" })
+
+          -- Diagnostic keymaps (global, work without LSP)
+          vim.keymap.set("n", "<leader>d", vim.diagnostic.open_float, { desc = "Show diagnostic" })
+          vim.keymap.set("n", "[d", vim.diagnostic.goto_prev, { desc = "Previous diagnostic" })
+          vim.keymap.set("n", "]d", vim.diagnostic.goto_next, { desc = "Next diagnostic" })
 
           -- Export capabilities for language configs
           _G.lsp_capabilities = capabilities
